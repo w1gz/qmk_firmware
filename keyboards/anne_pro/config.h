@@ -21,6 +21,12 @@
 #define STM32L152xB
 
 /*
+ * The STM32 L0/L1 EEPROM driver needs an explicit size; EECONFIG_SIZE is no
+ * longer provided by eeconfig.h.
+ */
+#define STM32_ONBOARD_EEPROM_SIZE 1024
+
+/*
  * Timeout after which the backlight of the keyboard is disabled if no keypresses are received.
  * If this feature is not needed you can set the timeout to UINT32_MAX, this is more than 100 years.
  */

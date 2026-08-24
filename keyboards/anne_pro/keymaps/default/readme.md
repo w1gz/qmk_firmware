@@ -2,21 +2,9 @@
 
 ### Maintainer: [msvisser](https://github.com/msvisser)
 
-This keymap is the default Windows keymap supplied on the original Anne Pro
-firmware. However the interface for Bluetooth is changed slightly.
+This is a pristine Windows-style default keymap for the original Anne Pro.
 
-### Bluetooth
-To enable the Bluetooht layer press `FN+B`.
+- Fn: function keys, arrows, and navigation
+- ANNE+Esc: enter the bootloader (`QK_BOOT`)
 
-While in the Bluetooth layer:
-- `ESC` - Exit Bluetooth layer
-- `1, 2, 3, 4` - Connect to saved profile
-- `Q, W, E, R` - Save connection to profile
-- `A, S, D, F` - Delete saved connection
-- `0` - Toggle legacy Bluetooth mode
-- `-` - Disable Bluetooth
-- `+` - Enable Bluetooth
-
-Finally the lighting on the `ESC` key tries to indicate the connection status
-of the Bluetooth. However this might sometimes go out of sync. To update the
-connection status press the left `CTRL` key.
+Lighting and Bluetooth keycodes are available in the other included keymaps (`arrow`, `macos`, `anne_pro_2_win`, `anne_pro_2_mac`).

@@ -17,6 +17,7 @@
 #include "anne_pro_lighting.h"
 #include "uart_tx_ringbuf.h"
 #include "quantum.h"
+#include "timer.h"
 #include "ch.h"
 #include "hal.h"
 
@@ -34,6 +35,7 @@ static uart_tx_ringbuf_t led_uart_ringbuf = {
 
 /* Handler for finsihed LED UART transmissions */
 static void led_uart_txend(UARTDriver *uart) {
+    (void)uart;
     uart_tx_ringbuf_finish_transmission(&led_uart_ringbuf);
 }
 
@@ -44,40 +46,25 @@ static UARTConfig led_uart_cfg = {
     .rxend_cb = NULL,
     .rxchar_cb = NULL,
     .rxerr_cb = NULL,
+    .timeout_cb = NULL,
     .speed = 38400,
     .cr1 = 0,
     .cr2 = USART_CR2_LINEN,
     .cr3 = 0
 };
 
-/* Timer to keep track of seconds, this allows the backlight timeout */
-static virtual_timer_t seconds_timer;
-static volatile uint32_t seconds_timer_counter = 0;
-
-/* Timer callback to update the seconds timer */
-static void update_seconds_timer(virtual_timer_t *vtp, void *p) {
-    chSysLockFromISR();
-    chVTSetI(&seconds_timer, TIME_MS2I(1000), update_seconds_timer, p);
-    chSysUnlockFromISR();
-
-    seconds_timer_counter++;
-}
-
 /* State of the leds on the keyboard */
 static volatile bool leds_enabled = false;
 
 void anne_pro_lighting_init(void) {
     /* Turn on lighting controller */
-    writePinLow(C15);
-    setPinOutput(C15);
+    gpio_write_pin_low(C15);
+    gpio_set_pin_output(C15);
 
     /* Initialize the lighting UART */
     uartStart(LED_UART, &led_uart_cfg);
-    palSetPadMode(GPIOB, 10, PAL_MODE_ALTERNATE(7));
-    palSetPadMode(GPIOB, 11, PAL_MODE_ALTERNATE(7));
-
-    /* Enable the seconds timer for backlight timeout */
-    chVTSet(&seconds_timer, TIME_MS2I(1000), update_seconds_timer, NULL);
+    palSetLineMode(B10, PAL_MODE_ALTERNATE(7));
+    palSetLineMode(B11, PAL_MODE_ALTERNATE(7));
 }
 
 /* Buffer for the keystate packet */
@@ -122,7 +109,7 @@ void anne_pro_lighting_update_timeout(keyrecord_t *record) {
 
     if (record->event.pressed) {
         /* Update the last keypress timer */
-        last_keypress_timer = seconds_timer_counter;
+        last_keypress_timer = timer_read32();
 
         /* If the lighting was turned off by a timeout, turn it back on */
         if (turned_off_by_timeout) {
@@ -135,7 +122,7 @@ void anne_pro_lighting_update_timeout(keyrecord_t *record) {
 /* Update lighting, should be called every matrix scan */
 void anne_pro_lighting_update(void) {
     /* If the backlight in on, and the last keypress timeout is hit */
-    if (leds_enabled && (seconds_timer_counter - last_keypress_timer) >= BACKLIGHT_TIMEOUT) {
+    if (leds_enabled && timer_elapsed32(last_keypress_timer) >= ((uint32_t)BACKLIGHT_TIMEOUT * 1000)) {
         /* Turn off the backlight */
         anne_pro_lighting_off();
         turned_off_by_timeout = true;
@@ -144,7 +131,7 @@ void anne_pro_lighting_update(void) {
     if (!uart_tx_ringbuf_empty(&led_uart_ringbuf)) {
         /* we need to slightly delay transmission in order for it to register
          * on the receiving end */
-        chThdSleepMilliseconds(1);
+        wait_ms(1);
         uart_tx_ringbuf_start_transmission(&led_uart_ringbuf);
     }
 }
@@ -161,14 +148,14 @@ void anne_pro_lighting_toggle(void) {
 /* Turn the lighting on */
 void anne_pro_lighting_on(void) {
     /* Wake up the LED controller */
-    writePinHigh(C15);
-    chThdSleepMilliseconds(50);
+    gpio_write_pin_high(C15);
+    wait_ms(50);
     /* Send turn light on command */
     uart_tx_ringbuf_write(&led_uart_ringbuf, 3, "\x09\x01\x01");
     uart_tx_ringbuf_start_transmission(&led_uart_ringbuf);
     leds_enabled = true;
     /* Wait for the message to be sent */
-    chThdSleepMilliseconds(10);
+    wait_ms(10);
 }
 
 /* Turn the lighting off */
@@ -178,7 +165,7 @@ void anne_pro_lighting_off(void) {
     uart_tx_ringbuf_start_transmission(&led_uart_ringbuf);
     leds_enabled = false;
     /* Sleep the LED controller */
-    writePinLow(C15);
+    gpio_write_pin_low(C15);
 }
 
 /* Is the lighting enabled? */

@@ -17,6 +17,7 @@
 #include "anne_pro_bluetooth.h"
 #include "anne_pro_lighting.h"
 #include "uart_tx_ringbuf.h"
+#include "quantum.h"
 #include "host.h"
 #include "host_driver.h"
 
@@ -35,6 +36,7 @@ static uart_tx_ringbuf_t bluetooth_uart_ringbuf = {
 
 /* Handler for finsihed Bluetooth UART transmissions */
 static void bluetooth_uart_txend(UARTDriver *uart) {
+    (void)uart;
     uart_tx_ringbuf_finish_transmission(&bluetooth_uart_ringbuf);
 }
 
@@ -42,9 +44,9 @@ static void bluetooth_uart_txend(UARTDriver *uart) {
 msg_t bluetooth_wakeup(void) {
     char rx_buf[3];
     size_t frames = 3;
-    palSetPad(GPIOA, 1);
+    gpio_write_pin_high(A1);
     msg_t result = uartReceiveTimeout(BLUETOOTH_UART, &frames, &rx_buf, 10);
-    palClearPad(GPIOA, 1);
+    gpio_write_pin_low(A1);
     return result;
 }
 
@@ -65,6 +67,7 @@ static UARTConfig bluetooth_uart_cfg = {
     .rxend_cb = NULL,
     .rxchar_cb = bluetooth_rx_char,
     .rxerr_cb = NULL,
+    .timeout_cb = NULL,
     .speed = 38400,
     .cr1 = 0,
     .cr2 = USART_CR2_LINEN,
@@ -204,6 +207,7 @@ void bluetooth_handle_packet(void) {
 
 /* Receive single character from the Bluetooth UART */
 void bluetooth_rx_char(UARTDriver *driver, uint16_t c) {
+    (void)driver;
     bluetooth_rx_buffer[bluetooth_rx_index++] = c;
 
     if (bluetooth_rx_index > 2) {
@@ -219,10 +223,10 @@ void bluetooth_rx_char(UARTDriver *driver, uint16_t c) {
 void anne_pro_bluetooth_init(void) {
     /* Initialize the bleutooth UART */
     uartStart(BLUETOOTH_UART, &bluetooth_uart_cfg);
-    palSetPadMode(GPIOA, 2, PAL_MODE_ALTERNATE(7));
-    palSetPadMode(GPIOA, 3, PAL_MODE_ALTERNATE(7));
-    palSetPadMode(GPIOA, 1, PAL_MODE_OUTPUT_PUSHPULL);
-    palClearPad(GPIOA, 1);
+    palSetLineMode(A2, PAL_MODE_ALTERNATE(7));
+    palSetLineMode(A3, PAL_MODE_ALTERNATE(7));
+    gpio_set_pin_output(A1);
+    gpio_write_pin_low(A1);
 
     /* Disable bluetooth on startup */
     anne_pro_bluetooth_off();
@@ -353,23 +357,26 @@ static void send_keyboard(report_keyboard_t *report) {
     uart_tx_ringbuf_write(&bluetooth_uart_ringbuf, 11, bluetooth_report);
 }
 
-/* Send mouse HID report for Bluetooth driver */
-static void send_mouse(report_nkro_t *report) {
+/* NKRO is not supported by the Obins Bluetooth controller */
+static void send_nkro(report_nkro_t *report) {
+    (void)report;
 }
 
-/* Send system report for Bluetooth driver */
-static void send_system(report_mouse_t *data) {
+/* Mouse reports are not supported by the Obins Bluetooth controller */
+static void send_mouse(report_mouse_t *report) {
+    (void)report;
 }
 
-/* Send consumer report for Bluetooth driver */
-static void send_consumer(report_extra_t *data) {
+/* Extra (system/consumer) reports are not implemented for this UART protocol */
+static void send_extra(report_extra_t *report) {
+    (void)report;
 }
 
 /* Bluetooth host driver, this allows us to switch from USB output to Bluetooth output */
 host_driver_t anne_pro_bluetooth_driver = {
-    keyboard_leds,
-    send_keyboard,
-    send_mouse,
-    send_system,
-    send_consumer
+    .keyboard_leds = keyboard_leds,
+    .send_keyboard = send_keyboard,
+    .send_nkro     = send_nkro,
+    .send_mouse    = send_mouse,
+    .send_extra    = send_extra,
 };

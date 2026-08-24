@@ -33,6 +33,10 @@ void early_hardware_init_pre(void) {
 
 /* Process the Anne Pro custom keycodes */
 bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
+    if (!process_record_user(keycode, record)) {
+        return false;
+    }
+
     /* Update the key status for the reactive effects */
     anne_pro_lighting_update_dynamic(record);
     anne_pro_lighting_update_timeout(record);
@@ -163,8 +167,7 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
         }
         return false;
     default:
-        /* Handle other keycodes normally */
-        return process_record_user(keycode, record);
+        return true;
     }
 }
 
