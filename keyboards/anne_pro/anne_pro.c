@@ -73,13 +73,12 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
         }
         return false;
     case APB_ON:
-        /* Turn on Bluetooth, if on start broadcasting */
+        /* Turn on Bluetooth and start broadcasting for pairing */
         if (record->event.pressed) {
             if (!anne_pro_bluetooth_enabled()) {
                 anne_pro_bluetooth_on();
-            } else {
-                anne_pro_bluetooth_broadcast();
             }
+            anne_pro_bluetooth_broadcast();
         }
         return false;
     case APB_LGC:
